@@ -12,7 +12,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using SystemEvents;
 
-namespace ConsoleApp1
+namespace MultimonitorMinimap
 {
     
     class Program
@@ -57,7 +57,13 @@ namespace ConsoleApp1
             window.Show();
             
             var app = new Application();
+            app.Exit += App_Exit;
             app.Run();            
+        }
+
+        private static void App_Exit(object sender, ExitEventArgs e)
+        {
+            Telemetry.TrackEvent("Application exited");
         }
 
         [DllImport("user32.dll")]
@@ -260,11 +266,19 @@ namespace ConsoleApp1
         [STAThread]
         static void Main(string[] args)
         {
-            SetProcessDpiAwareness(_Process_DPI_Awareness.Process_Per_Monitor_DPI_Aware);
+            Telemetry.TrackEvent("Application started");
+            try
+            {
+                SetProcessDpiAwareness(_Process_DPI_Awareness.Process_Per_Monitor_DPI_Aware);
+            }
+            catch (Exception ex)
+            {
+                Telemetry.TrackException(ex);
+            }
 
             System.Windows.Threading.DispatcherTimer dispatcherTimer = new System.Windows.Threading.DispatcherTimer();
             dispatcherTimer.Tick += new EventHandler(ShowStats);
-            dispatcherTimer.Interval = new TimeSpan(0, 0, 0, 1, 0);
+            dispatcherTimer.Interval = new TimeSpan(0, 0, 0, 0, 500);
             dispatcherTimer.Start();
 
             SystemListener listener = new SystemListener();
@@ -275,8 +289,6 @@ namespace ConsoleApp1
 
         static void listener_SystemEvent(object sender, SystemListenerEventArgs e)
         {
-            
-
             if (e.SystemEvent != SystemEvents.SystemEvents.ObjectValueChange
                 && e.SystemEvent != SystemEvents.SystemEvents.ObjectNameChange
                 && e.SystemEvent != SystemEvents.SystemEvents.ObjectLocationChange
@@ -284,10 +296,6 @@ namespace ConsoleApp1
                 && e.SystemEvent != SystemEvents.SystemEvents.ObjectDestroy
                 && (int)e.SystemEvent != 30102)
             {
-                
-
-
-                // if (e.SystemEvent == SystemEvents.SystemEvents.ObjectFocus)
                 if (e.SystemEvent == SystemEvents.SystemEvents.SystemForeground
                     || e.SystemEvent == SystemEvents.SystemEvents.ObjectFocus)
                 {
@@ -295,24 +303,26 @@ namespace ConsoleApp1
                     blinkHeight = 0;
                     Console.WriteLine(e.SystemEvent);
                     var hwnd = e.WindowHandle;
-                    
+
+                    // iteratively look for a suitable window to highlight
                     while (i > 0) {
                         if (hwnd == null)
-                        {
+                        {  
+                            // unexpected null reference
                             Console.WriteLine("null");
                         }
                         GetBlinkPropertiesFromHWND(hwnd, true, true);
                         var style = GetWindowLongPtr(hwnd, WindowLongFlags.GWL_STYLE);
                         var exstyle = GetWindowLongPtr(hwnd, WindowLongFlags.GWL_EXSTYLE);
-                        Console.WriteLine($"styles: {style} {exstyle}");
+                        // Console.WriteLine($"styles: {style} {exstyle}");
                         if (blinkHeight * blinkWidth < 300)
                         {
-                            hwnd = GetParent(hwnd);
-                            Console.WriteLine($"we pakken de parent {i}");                            
+                            // the found rectangle is too small. let's iterate towards the parent of it
+                            hwnd = GetParent(hwnd);                            
                             i--;
                         } else
                         {
-                            // een rechthoek die groot genoeg is gevonden
+                            // we found a rectangle that is big enough
                             break;
                         }
                     }
@@ -321,7 +331,7 @@ namespace ConsoleApp1
                     IntPtr hWnd = wih.Handle;
                     //if (hWnd == e.WindowHandle)
                     //{
-                    //    // dat ben ik zelf
+                    //    // that's me
                     //    return;
                     //}
 
